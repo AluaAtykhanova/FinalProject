@@ -16,8 +16,8 @@ import threading
 
 log_file_path = 'log.txt'  # Замените на путь к вашему файлу логов
 
+# Используем create_table из database.py и сохраняем переменные
 cursor, conn = create_table()
-print(f"Bot cursor and conn: {cursor} , {conn}")
 
 async def main():
     # Установка соединения с TelegramClient асинхронным способом
@@ -27,10 +27,19 @@ async def main():
         # Функция обработки новых запросов от пользователей
         async def my_event_handler(event):
             try:
+
                 yt = YouTube(event.text)
 
                 # Получаем текущую дату и время
                 current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                
+                if not event.text.startswith(("https://www.youtube.com/","https://youtube.com/","https://youtu.be/")):
+                    await client.send_message(event.chat_id, 'Извините, это не ссылка на YouTube')
+                    # Логгирование ошибки
+                    with open(log_file_path, 'a') as log_file:
+                        log_file.write(f"[{current_datetime}] Error: {event.text}, No YouTube URL\n")
+                    return  # Пропускаем запрос, так как аудиодорожка недоступна
 
                 # Поиск и отправка заголовка для ссылки из базы данных
                 if (await find_and_send_file_id_from_db(client, event.text, event.chat_id,cursor,conn)):
