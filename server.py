@@ -30,6 +30,11 @@ class MyRequestHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
             self.wfile.write(response.encode('utf-8', 'ignore'))
+        elif self.path == '/close_server':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b"Server stopped.")
         else:
             self.send_error(404, 'Not Found')
 
@@ -95,7 +100,7 @@ def copy_data(conn_source, conn_destination):
     conn_destination.commit()
 
 # Код для запуска и работы сервера
-def start_server(stop_server_flag):
+def start_server(stop_event):
     try:
         # Проверка существования файла перед его удалением
         if os.path.exists(db_file_path):
@@ -118,29 +123,16 @@ def start_server(stop_server_flag):
         server = HTTPServer(('localhost', 5555), MyRequestHandler)
         print("[INFO] Server listening on port 5555...")
 
-        while True:
-            # Ожидаем новое подключение
+        # Ожидаем новое подключение
+        while not stop_event.is_set():
             server.handle_request()
-
-        # # Обработка клиентов в отдельном потоке
-        # server.serve_forever()
-
-        # # Создаем поток для обработки клиента
-        # client_handler = threading.Thread(target=handle_client, args=(client_socket, conn_server))
-        # client_handler.start()
-
-    except KeyboardInterrupt:
-        pass
+            
+    except Exception as e:
+        print(f"Error in start_server: {str(e)}")
     finally:
-        try:
-            # Пытаемся остановить сервер
-            if server:
-                server.shutdown()
-                server.server_close()
-        except UnboundLocalError:
-            pass 
-
-        stop_server_flag.set()
+        # Закрытие сервера
+        server.server_close()
+        # Ваш код завершения работы сервера...
 
 # Код для того чтобы бот отправил данные на сервер
 def send_data_to_server(data):

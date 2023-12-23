@@ -16,10 +16,6 @@ import threading
 
 log_file_path = 'log.txt'  # Замените на путь к вашему файлу логов
 
-# Флаги для сигнализации остановки
-stop_bot_flag = asyncio.Event()
-stop_server_flag = threading.Event()
-
 cursor, conn = create_table()
 print(f"Bot cursor and conn: {cursor} , {conn}")
 
@@ -98,7 +94,7 @@ async def main():
                 data_to_send = f"{current_datetime},{event.text},{event.sender_id},{send_file_id}"
                 print(f"data_to_send: {data_to_send}")
 
-                 # Отправляем данные на сервер
+                # Отправляем данные на сервер
                 send_data_to_server(data_to_send)
 
                 print(f"Заголовок, сохраненный в базе данных: {send_file_id}")
@@ -122,37 +118,32 @@ async def main():
                     log_file.write("\n")
 
         await client.start()
-        print("Bot has started. Type '.' and press Enter to stop.")
+        print("Bot has started.")
 
         # Бесконечный цикл ввода
-        while not stop_bot_flag.is_set() or True:
-            user_input = await client.loop.run_in_executor(None, input)
+        while True:
+            user_input = await asyncio.to_thread(input, "Type '.' and press Enter to stop.")
             if user_input == ".":
+                # При получении сигнала остановки сервера
+                stop_event.set()
                 break
 
         print("Stopping the bot.")
-        stop_bot_flag.set()
-
-def stop_server():
-    print("Stopping the server.")
-    stop_server_flag.set()
 
 if __name__ == "__main__":
-    # Создаем объект threading.Event() для флага stop_server_flag
-    stop_server_flag = threading.Event()
+    stop_event = threading.Event()
 
-    server_thread = threading.Thread(target=start_server, args=(stop_server_flag,))
+    # Создаем и запускаем поток сервера
+    server_thread = threading.Thread(target=start_server, args=(stop_event,))
     server_thread.start()
 
-    try:
-        asyncio.run(main())
-    finally:
-        stop_bot_flag.set()  # Устанавливаем флаг остановки бота
+    # Запускаем асинхронный код бота в основном потоке
+    asyncio.run(main())
 
-        stop_server()
+    # Отправляем HTTP-запрос на сервер после завершения работы бота
+    response = requests.get('http://localhost:5555/close_server')  # Пример URL-адреса, на который отправляется запрос
+    print(response.text)  # Пример обработки ответа от сервера
 
-        # Ожидаем завершения работы сервера
-        server_thread.join()
-
-        # Завершаем выполнение программы
-        print("Program terminated.")
+    server_thread.join()
+# timeout=1
+    print("Program terminated.")
