@@ -1,6 +1,6 @@
 from pytube import YouTube
-from pytube.exceptions import LiveStreamError
-from tokens import TOKEN, TARGET_CHAT_ID, api_id, api_hash
+from pytube.exceptions import LiveStreamError, AgeRestrictedError
+from tokens import api_id, api_hash
 from download import download_and_rename_audio 
 from telethon import TelegramClient, events, types
 import requests
@@ -33,7 +33,6 @@ async def main():
                 # Получаем текущую дату и время
                 current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                
                 if not event.text.startswith(("https://www.youtube.com/","https://youtube.com/","https://youtu.be/")):
                     await client.send_message(event.chat_id, 'Извините, это не ссылка на YouTube')
                     # Логгирование ошибки
@@ -46,16 +45,12 @@ async def main():
                     return
                 print("Прекратил поиск ссылки")
 
-                # Проверяем наличие аудиодорожки
+                # Проверяем Ограничение по возрасту или Продолжающийся стрим(Самые частые ошибки)
                 if not yt.streams.filter(only_audio=True):
-                    await client.send_message(event.chat_id, 'Извините, но это видео не поддерживает скачивание аудио.')
-                    # Логгирование ошибки
-                    with open(log_file_path, 'a') as log_file:
-                        log_file.write(f"[{current_datetime}] Error: {event.text}, No audio stream available\n")
                     return  # Пропускаем запрос, так как аудиодорожка недоступна
 
                 # Отправляем сообщение о начале загрузки
-                message = await client.send_message(event.chat_id, 'Загружаю файл...')
+                message = await client.send_message(event.chat_id, 'Скачиваю файл...')
 
                 # Скачиваем видео и переименовываем его
                 result = download_and_rename_audio(event.text)
@@ -110,6 +105,13 @@ async def main():
 
                 await delete_file(result)
 
+            except AgeRestrictedError:
+                await client.send_message(event.chat_id, 'Извините, но это видео не поддерживает скачивание аудио так как на видео стоит ограничение по возрасту.')
+                # Записываем результат в лог-файл
+                with open(log_file_path, 'a') as log_file:
+                    log_file.write(f"[{current_datetime}] Error: Video is age restricted, and cannot be accessed without OAuth. - {event.text}\n")
+                    log_file.write("\n")
+
             except LiveStreamError:
                 await client.send_message(event.chat_id, 'Извините, но это видео является прямым эфиром и не может быть загружено.')
                 # Записываем результат в лог-файл
@@ -119,7 +121,7 @@ async def main():
 
             except Exception as e:
                 # Обрабатываем возможные ошибки
-                await client.send_message(event.chat_id, f'Извините, произошла ошибка,')
+                await client.send_message(event.chat_id, f'Извините, произошла ошибка,', {str(e)})
 
                 # Записываем результат ошибки в лог-файл
                 with open(log_file_path, 'a') as log_file:

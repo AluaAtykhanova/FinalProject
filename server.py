@@ -6,7 +6,8 @@ import sqlite3
 import os
 
 # Путь к файлу базы данных сервера
-db_file_path = "/home/alua/FinalProject/video_info_server.db"
+server_db_file_path = "/home/alua/FinalProject/video_info_server.db"
+bot_db_file_path = "/home/alua/FinalProject/video_info.db"
 
 class MyRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -20,7 +21,7 @@ class MyRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Hello, this is your server.")
         elif self.path == '/data':
             # Подключение к базе данных и отправка данных клиенту
-            conn = sqlite3.connect('video_info_server.db')
+            conn = sqlite3.connect(server_db_file_path)
             create_table(conn)
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM video_info")
@@ -48,7 +49,7 @@ class MyRequestHandler(BaseHTTPRequestHandler):
             data = self.rfile.read(content_length).decode('utf-8')
             
             # Обработка данных (пример: вставка данных в базу данных)
-            conn = sqlite3.connect('video_info_server.db')
+            conn = sqlite3.connect(server_db_file_path)
             create_table(conn)
             cursor = conn.cursor()
             # Пример: разбор данных как CSV
@@ -58,10 +59,13 @@ class MyRequestHandler(BaseHTTPRequestHandler):
             conn.commit()
 
             # Отправляем успешный ответ
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b"Data received and processed successfully.")
+            try:
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b"Data received and processed successfully.")
+            except BrokenPipeError:
+                print("Client closed the connection before response could be sent.")
         else:
             self.send_error(404, 'Not Found')
 
@@ -103,18 +107,18 @@ def copy_data(conn_source, conn_destination):
 def start_server(stop_event):
     try:
         # Проверка существования файла перед его удалением
-        if os.path.exists(db_file_path):
-            os.remove(db_file_path)
-            print(f"File {db_file_path} removed successfully")
+        if os.path.exists(server_db_file_path):
+            os.remove(server_db_file_path)
+            print(f"File {server_db_file_path} removed successfully")
         else:
-            print(f"File {db_file_path} does not exist")
+            print(f"File {server_db_file_path} does not exist")
 
         # Создаем соединение с базой данных сервера (video_info_server.db)
-        conn_server = sqlite3.connect('video_info_server.db')
+        conn_server = sqlite3.connect(server_db_file_path)
         create_table(conn_server)
 
         # Создаем соединение с базой данных бота (video_info.db)
-        conn_bot = sqlite3.connect('video_info.db')
+        conn_bot = sqlite3.connect(bot_db_file_path)
 
         # Копируем данные из базы данных бота в базу данных сервера
         copy_data(conn_bot, conn_server)
@@ -160,33 +164,3 @@ def send_data_to_server(data):
     finally:
         client.close()  # Всегда закрываем соединение, даже если произошла ошибка
 
-# Код для обработки клиента
-def handle_client(client_socket, conn):
-    """
-    Обработка данных от клиента.
-    """
-    try:
-        print('Бот уже отправил файл')
-        data = client_socket.recv(1024)
-        data_list = data.decode().split(',')
-        print(data_list)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO video_info (date_time, video_url, sender_id, file_id) 
-            VALUES (?, ?, ?, ?)''',(data_list[0],data_list[1],data_list[2],data_list[3]))
-        conn.commit()
-
-        # Отправка подтверждения клиенту
-        confirmation_message = "Данные успешно добавлены в базу данных сервера."
-        client_socket.sendall(confirmation_message.encode('utf-8'))
-
-        cursor.execute("SELECT * FROM video_info")
-        rows = cursor.fetchall()
-        print("Current data in the server's database:")
-        for row in rows:
-            print(row)
-    except Exception as e:
-        print(f"Error in handle_client: {e}")
-    # finally:
-    #     cursor.close()
-        client_socket.close()

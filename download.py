@@ -18,11 +18,11 @@ def download_and_rename_audio(url):
     try:
         # Создаем объект YouTube и получаем аудио-стрим
         yt = YouTube(url)
-        audio_stream = yt.streams.filter(only_audio=True).first().download()
-        print(f"Аудиофайл успешно скачан: {audio_stream}")
+        audio_file_path = yt.streams.filter(only_audio=True).first().download()
+        print(f"Аудиофайл успешно скачан: {audio_file_path}")
 
         # Переименовываем аудиофайл
-        result = rename_file(audio_stream)
+        result = rename_file(audio_file_path)
         print(f"Файл успешно переименован: {result}")
 
         return result

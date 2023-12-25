@@ -33,7 +33,3 @@ def rename_file(file_path):
     except Exception as e:
         print(f"Ошибка при переименовании файла: {e}")
         return None
-
-# Пример использования
-# file_path = '/home/alua/FinalProject/ПРОХОДИМ ОТОМЭ ТАРЕЛКИ.mp4'
-# rename_file(file_path)
